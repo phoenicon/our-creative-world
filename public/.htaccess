@@ -1,0 +1,8 @@
+# SPA fallback for Hostinger (Apache/LiteSpeed): serve real files as-is,
+# route everything else to index.html so React Router handles the path.
+RewriteEngine On
+RewriteBase /
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+RewriteRule ^ index.html [L]
