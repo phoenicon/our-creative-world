@@ -60,7 +60,7 @@ const Index = () => {
                 Twin Quest II
               </h2>
               <p className="text-muted-foreground text-sm font-body">
-                Four worlds! Greenwood · Crystal Caves · Flooded Ruins · the Castle 🎮
+                EIGHT worlds! From the Greenwood all the way to the Star Palace 🎮
               </p>
             </div>
           </div>

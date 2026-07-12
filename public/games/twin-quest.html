@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Twin Quest II — Four Worlds</title>
+<title>Twin Quest II — Eight Worlds</title>
 <style>
   :root{
     --grass:#5fae3b; --grass2:#52a032; --dirt:#8a5a2b; --stone:#9099a1; --stone2:#7c858d;
     --wood:#6b4a2b; --leaf:#2f7d2f; --water:#3a78d6; --gold:#ffd24a;
-    --wall:#4b4655; --wall2:#3a3644; --floor:#7d6a4f; --floor2:#6f5e44;
+    --wall:#4b4655; --wall2:#3a3644; --floor:#7d6a4f; --floor2:#6f5e44; --bridge:#a97b46;
     --panel:#2b1d3a; --panel-line:#5a3f7a; --ink:#fff7e6;
   }
   *{box-sizing:border-box;}
@@ -70,7 +70,7 @@
 </head>
 <body>
 <div id="wrap">
-  <h1>★ TWIN QUEST II · FOUR WORLDS ★</h1>
+  <h1>★ TWIN QUEST II · EIGHT WORLDS ★</h1>
   <div id="stage">
     <canvas id="game" width="640" height="480"></canvas>
     <div id="hud" class="hidden">
@@ -87,7 +87,7 @@
     </div>
     <div id="title" class="overlay">
       <div class="big">TWIN QUEST II</div>
-      <div class="sub">Four worlds await: the Greenwood, the Crystal Caves,<br>the Flooded Ruins and the Slime King's Castle!</div>
+      <div class="sub">EIGHT worlds await — from the Greenwood to the frozen peaks,<br>a fiery volcano, a moonlit marsh... and the Star Palace itself!</div>
       <div class="heroes">
         <div class="hero" tabindex="0" data-hero="bethan"><canvas width="64" height="64" data-portrait="bethan"></canvas><div class="nm">BETHAN</div></div>
         <div class="hero" tabindex="0" data-hero="gwener"><canvas width="64" height="64" data-portrait="gwener"></canvas><div class="nm">GWENER</div></div>
@@ -123,11 +123,12 @@
   const dctx=darkCv.getContext('2d');
 
   // terrain tiles
-  const T={GRASS:0,TREE:1,STONE:2,WATER:3,FLOWER:4,WALL:5,FLOOR:6,SPIKE:7,DOOR:8,DOOROPEN:9,BRIDGE:10,SHALLOW:11,LIFT:12};
+  const T={GRASS:0,TREE:1,STONE:2,WATER:3,FLOWER:4,WALL:5,FLOOR:6,SPIKE:7,DOOR:8,DOOROPEN:9,BRIDGE:10,SHALLOW:11,LIFT:12,ICE:13};
   const MINEABLE=new Set([T.TREE,T.STONE]);
 
   let map, gems, slimes, bats, crates, gates, plates, signs, particles;
   let player, dog, boss, frog, chest, cage, lift, bone, keysArr, bootsPk, torchPk;
+  let projectiles, levers, ghosts, critters, portals, shooter, pup;
   let cam={x:0,y:0}, shakeT=0, levelIdx=0, L=null;
   let state='title', heroKey='bethan', soundOn=true, keys={}, actLatch=false;
 
@@ -141,6 +142,7 @@
   let prog;
   try{ prog=JSON.parse(localStorage.getItem(PKEY))||null; }catch(e){ prog=null; }
   if(!prog||!Array.isArray(prog.done)) prog={done:[false,false,false,false],dog:false};
+  while(prog.done.length<8) prog.done.push(false);   // saves from the 4-world era
   function saveProg(){ try{ localStorage.setItem(PKEY,JSON.stringify(prog)); }catch(e){} }
   function awardSticker(id){
     try{ const a=JSON.parse(localStorage.getItem('ocw-stickers')||'[]');
@@ -181,11 +183,13 @@
   function resetState(){
     gems=[]; slimes=[]; bats=[]; crates=[]; gates=[]; plates=[]; signs=[]; particles=[];
     bone=null; keysArr=[]; bootsPk=null; torchPk=null; dog=null; boss=null; frog=null; chest=null; cage=null; lift=null;
+    projectiles=[]; levers=[]; ghosts=[]; critters=[]; portals=[]; shooter=null; pup=null;
   }
   function spawnPlayer(tx,ty){
     player={x:tx*TILE+8,y:ty*TILE+8,w:24,h:24,speed:2.7,dir:'down',hp:6,maxhp:6,inv:0,swing:0,
-            gems:0,hasBone:false,keys:0,hasBoots:false,hasTorch:false};
+            gems:0,hasBone:false,keys:0,hasBoots:false,hasTorch:false,portCd:0,sdx:0,sdy:0};
   }
+  function placePup(tx,ty){ if(prog.done[3]) pup={x:tx*TILE+8,y:ty*TILE+8,t:0}; }
 
   // ---------- LEVELS ----------
   const LEVELS=[
@@ -243,7 +247,7 @@
     checkWin(pcx,pcy){ return chest.open && Math.abs(chest.x*TILE+20-pcx)<30 && Math.abs(chest.y*TILE+20-pcy)<30; } },
 
   { name:'Crystal Caves', emoji:'💎', sub:'Mine deep · beware the bats', sticker:'quest-caves',
-    dark:true, waterPush:false, gemTarget:3,
+    dark:true, waterPush:false, gemTarget:3, mineFloor:true,
     pal:{'--grass':'#3d4351','--grass2':'#363b48','--floor':'#565c6e','--floor2':'#4c5262',
          '--stone':'#6e7683','--stone2':'#5c636f','--wall':'#2c2637','--wall2':'#211c2a'},
     winText:"The lift rumbles up into the sunlight with three shining crystals. The Crystal Caves are conquered!",
@@ -381,6 +385,170 @@
       return "The cage is open — rescue the golden puppy! 🐶";
     },
     checkWin(pcx,pcy){ return cage.open && Math.abs(cage.x*TILE+20-pcx)<32 && Math.abs(cage.y*TILE+20-pcy)<32; } },
+
+  { name:'Frozen Peaks', emoji:'❄️', sub:'Slippery ice & the Grumpy Yeti', sticker:'quest-frozen',
+    dark:false, waterPush:false, ambient:'snow',
+    pal:{'--grass':'#e8f0f6','--grass2':'#dce8f0','--stone':'#b8d4e8','--stone2':'#9cc0da',
+         '--wall':'#5a748c','--wall2':'#48607a','--leaf':'#2e6648','--floor':'#c8d8e6','--floor2':'#bccfe0'},
+    winText:"The Grumpy Yeti waves goodbye with a snowball. You slid, you bonked, you conquered the Frozen Peaks! ❄️",
+    build(){
+      map=[];
+      for(let y=0;y<MAP_H;y++){ const row=[];
+        for(let x=0;x<MAP_W;x++){
+          if(x===0||y===0||x===MAP_W-1||y===MAP_H-1){ row.push(T.WALL); continue; }
+          const r=Math.random(); let t=T.GRASS;
+          if(r<0.09)t=T.TREE; else if(r<0.16)t=T.STONE;
+          row.push(t);
+        } map.push(row);
+      }
+      rect(2,2,6,6,T.GRASS);                               // start clearing
+      rect(6,3,9,5,T.GRASS);                               // route to the lake
+      rect(9,5,21,14,T.ICE);                               // the frozen lake
+      setTile(13,8,T.STONE); setTile(17,11,T.STONE); setTile(12,12,T.STONE); // islets to crash into
+      rect(2,7,3,17,T.GRASS); rect(2,15,20,16,T.GRASS);    // southern path around the lake
+      rect(21,15,27,20,T.GRASS);                           // yeti arena
+      rect(22,2,27,4,T.GRASS);                             // northern gem ledge
+      gems=[{x:15,y:10,got:false},{x:3,y:17,got:false},{x:26,y:3,got:false}];
+      signs=[
+        {x:4,y:3,text:"Whee! ICE is slippery — you keep sliding until you stop. Lean to steer!"},
+        {x:20,y:15,text:"The Grumpy Yeti LOVES snowball fights. Dodge his snowballs and bonk him!"},
+      ];
+      signs.forEach(s=>setTile(s.x,s.y,T.GRASS));
+      slimes=[mkSlime(7,12),mkSlime(18,16)];
+      shooter={kind:'yeti',x:24*TILE,y:17*TILE,w:36,h:34,hp:8,maxhp:8,alive:true,vx:0,vy:0,t:0,flash:0,shotT:0,split:[],
+               minX:21*TILE,maxX:26*TILE,minY:15*TILE,maxY:19*TILE};
+      chest={x:24,y:17,open:false};
+      if(prog.dog) placeDog(2,5); placePup(4,5);
+      spawnPlayer(3,3);
+    },
+    obj(){
+      if(shooter&&shooter.alive) return "Slide across the ice ❄️ and bonk the Grumpy Yeti!";
+      return "Open the treasure chest to win! ✨";
+    },
+    checkWin(pcx,pcy){ return chest.open && Math.abs(chest.x*TILE+20-pcx)<30 && Math.abs(chest.y*TILE+20-pcy)<30; } },
+
+  { name:"Dragon's Volcano", emoji:'🌋', sub:'Lava bridges · levers · a baby dragon', sticker:'quest-volcano',
+    dark:false, waterPush:true, ambient:'ember',
+    pal:{'--floor':'#4a3a3e','--floor2':'#403134','--grass':'#4a3a3e','--grass2':'#403134',
+         '--wall':'#2e2226','--wall2':'#241a1e','--water':'#ff6a1f','--stone':'#6a5a5e','--stone2':'#584a4e',
+         '--bridge':'#4a4152'},
+    winText:"The Baby Dragon curls up for a nap, purring smoke rings. You tamed the Volcano! 🐉",
+    build(){
+      fillAll(T.FLOOR);
+      rect(0,0,MAP_W-1,0,T.WALL); rect(0,MAP_H-1,MAP_W-1,MAP_H-1,T.WALL);
+      rect(0,0,0,MAP_H-1,T.WALL); rect(MAP_W-1,0,MAP_W-1,MAP_H-1,T.WALL);
+      rect(9,1,9,20,T.WATER);                              // lava river 1 (water = lava here)
+      rect(18,1,18,20,T.WATER);                            // lava river 2
+      rect(13,1,13,20,T.WALL); setTile(13,10,T.FLOOR);     // mid wall...
+      gates=[{x:13,y:10,group:5,open:false},{x:23,y:9,group:6,open:false}];
+      levers=[{x:11,y:8,group:5,on:false},{x:25,y:12,group:6,on:false}];
+      rect(19,9,28,9,T.WALL); setTile(23,9,T.FLOOR);       // arena wall (gate sits at 23,9)
+      crates=[{x:6,y:10,pushT:0},{x:15,y:14,pushT:0}];
+      setTile(11,15,T.SPIKE); setTile(16,17,T.SPIKE); setTile(21,13,T.SPIKE);
+      signs=[
+        {x:3,y:3,text:"The mountain is grumpy today! Push crates into LAVA to make stone bridges."},
+        {x:10,y:5,text:"A lever! Give it a pull with USE."},
+        {x:23,y:14,text:"One more lever... the Baby Dragon snoozes beyond. He breathes FIRE — keep moving!"},
+      ];
+      gems=[{x:2,y:19,got:false},{x:16,y:2,got:false},{x:27,y:19,got:false}];
+      bats=[mkBat(11,6),mkBat(21,15),mkBat(24,17)];
+      shooter={kind:'dragon',x:22*TILE,y:4*TILE,w:40,h:30,hp:10,maxhp:10,alive:true,vx:1.2,vy:0,t:0,flash:0,shotT:0,split:[],
+               minX:20*TILE,maxX:26*TILE,minY:2*TILE,maxY:7*TILE};
+      chest={x:23,y:5,open:false};
+      if(prog.dog) placeDog(2,4); placePup(4,4);
+      spawnPlayer(3,3);
+    },
+    obj(){
+      if(shooter&&shooter.alive) return "Bridge the lava 🌋, pull the levers, and calm the Baby Dragon! 🐉";
+      return "Open the treasure chest to win! ✨";
+    },
+    checkWin(pcx,pcy){ return chest.open && Math.abs(chest.x*TILE+20-pcx)<30 && Math.abs(chest.y*TILE+20-pcy)<30; } },
+
+  { name:'Moonlit Marsh', emoji:'🌙', sub:'Rescue the three lost bunnies', sticker:'quest-marsh',
+    dark:true, lightR:4.0, lightRTorch:6.4, waterPush:false,
+    pal:{'--grass':'#2e4a3e','--grass2':'#28423a','--leaf':'#1e5c38','--wood':'#3a4a3e',
+         '--wall':'#3a5548','--wall2':'#2e463c','--water':'#1e4a66','--stone':'#4a5c54','--stone2':'#3e5048'},
+    winText:"All three bunnies are safe and warm in the pen, noses twitching happily. The Marsh sings you a thank-you song! 🐰🐰🐰",
+    pen:{x0:3,y0:9,x1:5,y1:11},
+    build(){
+      map=[];
+      for(let y=0;y<MAP_H;y++){ const row=[];
+        for(let x=0;x<MAP_W;x++){
+          if(x===0||y===0||x===MAP_W-1||y===MAP_H-1){ row.push(T.WALL); continue; }
+          const r=Math.random(); let t=T.GRASS;
+          if(r<0.10)t=T.TREE; else if(r<0.18)t=T.FLOWER; else if(r<0.22)t=T.STONE;
+          row.push(t);
+        } map.push(row);
+      }
+      rect(12,8,14,10,T.WATER); rect(20,4,22,6,T.WATER);   // bog ponds
+      rect(7,2,11,7,T.GRASS);                              // start clearing
+      // the bunny pen (fenced, opening at the south)
+      rect(2,8,6,8,T.WALL); rect(2,12,6,12,T.WALL); rect(2,9,2,11,T.WALL); rect(6,9,6,11,T.WALL);
+      rect(3,9,5,11,T.GRASS); setTile(4,12,T.GRASS);
+      torchPk={x:10,y:4,got:false};
+      critters=[{x:25*TILE,y:3*TILE,found:false,delivered:false,t:0},
+                {x:26*TILE,y:18*TILE,found:false,delivered:false,t:40},
+                {x:3*TILE,y:19*TILE,found:false,delivered:false,t:80}];
+      rect(24,2,26,4,T.GRASS); rect(25,17,27,19,T.GRASS); rect(2,18,4,20,T.GRASS);
+      signs=[
+        {x:8,y:3,text:"Three little bunnies are lost in the foggy marsh! Find them and lead them home."},
+        {x:4,y:13,text:"The bunny pen — bring every bunny here! 🐰"},
+        {x:17,y:11,text:"Ghosts are shy really. A brave sword swing shoos them away!"},
+      ];
+      signs.forEach(s=>setTile(s.x,s.y,T.GRASS));
+      ghosts=[{x:15*TILE,y:5*TILE,t:0,hp:1},{x:21*TILE,y:12*TILE,t:50,hp:1},{x:10*TILE,y:16*TILE,t:100,hp:1}];
+      gems=[{x:27,y:10,got:false},{x:14,y:19,got:false},{x:2,y:2,got:false}];
+      gems.forEach(g=>setTile(g.x,g.y,T.GRASS));
+      if(prog.dog) placeDog(8,5); placePup(9,6);
+      spawnPlayer(8,4);
+    },
+    obj(){
+      const d=critters.filter(c=>c.delivered).length;
+      if(d<3) return "Find the lost bunnies in the fog 🐰 ("+d+"/3 safely home)";
+      return "All bunnies safe! ✨";
+    },
+    checkWin(){ return critters.length>0 && critters.every(c=>c.delivered); } },
+
+  { name:'Star Palace', emoji:'🌟', sub:'Magic doors · deflect the Star Queen', sticker:'quest-star',
+    dark:false, waterPush:false, ambient:'sparkle',
+    pal:{'--floor':'#3a3358','--floor2':'#332c4e','--grass':'#3a3358','--grass2':'#332c4e',
+         '--wall':'#241f38','--wall2':'#1c1830'},
+    winText:"The Star Queen's spell is broken — she was just lonely! The palace fills with light, and YOU are the Champion of the Eight Worlds, wearer of the Rainbow Cape! 🌈👑",
+    build(){
+      fillAll(T.FLOOR);
+      rect(0,0,MAP_W-1,0,T.WALL); rect(0,MAP_H-1,MAP_W-1,MAP_H-1,T.WALL);
+      rect(0,0,0,MAP_H-1,T.WALL); rect(MAP_W-1,0,MAP_W-1,MAP_H-1,T.WALL);
+      rect(1,8,28,8,T.WALL); setTile(15,8,T.GRASS);        // palace wall, gate at (15,8)
+      gates=[{x:15,y:8,group:1,open:false}];
+      rect(9,1,9,7,T.WALL); rect(21,1,21,7,T.WALL);        // throne room side walls
+      rect(22,9,22,20,T.WALL);                             // east wing (portal-only)
+      rect(8,9,8,20,T.WALL);                               // west wing (portal-only)
+      portals=[{x:5,y:17,tx:25,ty:17},{x:25,y:17,tx:5,ty:17},   // wait— east portal pair
+               {x:12,y:15,tx:4,ty:12},{x:4,y:12,tx:12,ty:15}];
+      crates=[{x:25,y:12,pushT:0}];
+      plates=[{x:24,y:15,group:1,on:false}];
+      setTile(13,10,T.SPIKE); setTile(17,10,T.SPIKE);
+      signs=[
+        {x:14,y:18,text:"The Star Queen waits on her throne. Sparkling circles are MAGIC DOORS — step in!"},
+        {x:24,y:11,text:"Push the crate onto the star plate to open the palace gate."},
+        {x:13,y:9,text:"Swing your sword at the Queen's stars to BOUNCE them back at her! ⭐"},
+      ];
+      gems=[{x:3,y:19,got:false},{x:6,y:10,got:false},{x:27,y:9,got:false}];
+      slimes=[mkSlime(12,12),mkSlime(18,14),mkSlime(15,11)];
+      shooter={kind:'queen',x:15*TILE,y:4*TILE,w:30,h:34,hp:12,maxhp:12,alive:true,vx:0,vy:0,t:0,flash:0,shotT:0,tpT:0,split:[8,4],
+               minX:10*TILE,maxX:19*TILE,minY:2*TILE,maxY:6*TILE};
+      chest={x:15,y:4,open:false};
+      if(prog.dog) placeDog(14,19); placePup(16,19);
+      spawnPlayer(15,19);
+    },
+    obj(){
+      if(shooter&&shooter.alive){
+        const g=gates[0].open?"":"Open the palace gate, then ";
+        return g+"face the Star Queen — bounce her stars back with your sword! 🌟";
+      }
+      return "Open the treasure chest — you did it! ✨";
+    },
+    checkWin(pcx,pcy){ return chest.open && Math.abs(chest.x*TILE+20-pcx)<30 && Math.abs(chest.y*TILE+20-pcy)<30; } },
   ];
 
   // ---------- collision ----------
@@ -441,12 +609,17 @@
     // read sign
     for(const s of signs){ if(Math.abs(s.x*TILE+20-(player.x+12))<44 && Math.abs(s.y*TILE+20-(player.y+12))<44){
         setHint(s.text); return; } }
+    // pull lever
+    for(const l of levers){ if(Math.abs(l.x*TILE+20-(player.x+12))<44 && Math.abs(l.y*TILE+20-(player.y+12))<44){
+        l.on=!l.on; gates.forEach(g=>{ if(g.group===l.group) g.open=l.on; }); sfx.door();
+        for(let i=0;i<8;i++)particles.push(part(l.x*TILE+20,l.y*TILE+20,'#ffd24a',16));
+        setHint(l.on?"CLUNK! Something rumbles open...":"CLUNK! Something rumbles shut..."); return; } }
     // swing (mine / attack)
     if(player.swing>0) return; player.swing=10; sfx.swing();
     const f=frontTile();
     if(f.tx>0&&f.ty>0&&f.tx<MAP_W-1&&f.ty<MAP_H-1){
       const tt=map[f.ty][f.tx];
-      if(MINEABLE.has(tt)){ setTile(f.tx,f.ty,L.dark?T.FLOOR:T.GRASS); sfx.mine();
+      if(MINEABLE.has(tt)){ setTile(f.tx,f.ty,L.mineFloor?T.FLOOR:T.GRASS); sfx.mine();
         const col=tt===T.TREE?'#4a8f2a':'#aab0b6';
         for(let i=0;i<8;i++)particles.push(part(f.tx*TILE+20,f.ty*TILE+20,col,18)); }
     }
@@ -461,8 +634,19 @@
     bats.forEach(b=>{ if(Math.abs(b.x+10-hx)<26&&Math.abs(b.y+8-hy)<26){ b.hp--; sfx.pop();
       for(let i=0;i<6;i++)particles.push(part(b.x+10,b.y+8,'#8a6fb8',14)); } });
     bats=bats.filter(b=>b.hp>0);
+    ghosts.forEach(g=>{ if(Math.abs(g.x+10-hx)<28&&Math.abs(g.y+8-hy)<28){ g.hp--; sfx.pop();
+      for(let i=0;i<8;i++)particles.push(part(g.x+10,g.y+8,'#e8ecf8',18)); } });
+    ghosts=ghosts.filter(g=>g.hp>0);
+    // deflect projectiles back at their sender!
+    projectiles.forEach(p=>{ if(p.hostile&&Math.abs(p.x-hx)<32&&Math.abs(p.y-hy)<32){
+      p.hostile=false;
+      const t=shooter&&shooter.alive?{x:shooter.x+shooter.w/2,y:shooter.y+shooter.h/2}:{x:p.x-p.vx*20,y:p.y-p.vy*20};
+      const dl=Math.hypot(t.x-p.x,t.y-p.y)||1; p.vx=(t.x-p.x)/dl*3.6; p.vy=(t.y-p.y)/dl*3.6;
+      sfx.plate(); for(let i=0;i<6;i++)particles.push(part(p.x,p.y,'#7df0ff',14)); } });
     if(frog&&frog.alive&&frog.state==='idle'){
       if(Math.abs(frog.x+17-hx)<34&&Math.abs(frog.y+13-hy)<32){ hitFrog(1); } }
+    if(shooter&&shooter.alive){
+      if(Math.abs(shooter.x+shooter.w/2-hx)<36&&Math.abs(shooter.y+shooter.h/2-hy)<34){ hitShooter(2); } }
     if(boss&&boss.alive){ if(Math.abs(boss.x+17-hx)<34&&Math.abs(boss.y+15-hy)<34){ hitBoss(2); } }
   }
   function part(x,y,col,life){ return {x,y,vx:(Math.random()-.5)*3.5,vy:(Math.random()-.5)*3.5,life,col}; }
@@ -487,12 +671,64 @@
       for(let i=0;i<30;i++)particles.push(part(frog.x+17,frog.y+13,['#ffd24a','#8fdb5a','#fff'][i%3],36));
       setHint("The Grumpy Frog gives up! Open the treasure chest!"); } }
 
+  function hitShooter(d){ shooter.hp-=d; shooter.flash=8; sfx.boss(); shakeT=6;
+    const cx=shooter.x+shooter.w/2, cy=shooter.y+shooter.h/2;
+    for(let i=0;i<8;i++)particles.push(part(cx,cy,'#fff',16));
+    while(shooter.split&&shooter.split.length&&shooter.hp<=shooter.split[0]){
+      shooter.split.shift();
+      slimes.push(mkSlime(Math.floor(shooter.x/TILE),Math.floor(shooter.y/TILE)+1));
+      slimes.push(mkSlime(Math.floor(shooter.x/TILE)+1,Math.floor(shooter.y/TILE)+1));
+      setHint("The Queen calls her slime guards!"); sfx.pop(); }
+    if(shooter.hp<=0){ shooter.alive=false; chest.open=true; shakeT=18; sfx.win();
+      for(let i=0;i<44;i++)particles.push(part(cx,cy,['#ffd24a','#7df0ff','#fff','#e88aff'][i%4],42));
+      const msg={yeti:"The Yeti flops into a snowdrift, giggling! Open the treasure chest!",
+                 dragon:"The Baby Dragon yawns and curls up to nap! Open the treasure chest!",
+                 queen:"The Star Queen's spell shatters into light! Open the treasure chest!"}[shooter.kind];
+      setHint(msg); } }
+
+  function shootAt(x,y,tx,ty,speed,kind){
+    const dl=Math.hypot(tx-x,ty-y)||1;
+    projectiles.push({x,y,vx:(tx-x)/dl*speed,vy:(ty-y)/dl*speed,life:220,kind,hostile:true}); }
+
+  function updateShooter(pcx,pcy){
+    const s=shooter; s.t++; if(s.flash>0)s.flash--;
+    const cx=s.x+s.w/2, cy=s.y+s.h/2;
+    if(s.kind==='yeti'){
+      if(s.t%52===0){ const tox=pcx-cx,toy=pcy-cy,tl=Math.hypot(tox,toy)||1;
+        s.vx=(tox/tl)*1.15; s.vy=(toy/tl)*1.15; }
+      let nx=s.x+s.vx; if(mobClear(nx,s.y,s.w-1,'mob'))s.x=nx; else s.vx*=-1;
+      let ny=s.y+s.vy; if(mobClear(s.x,ny,s.h-1,'mob'))s.y=ny; else s.vy*=-1;
+      s.shotT++; if(s.shotT>105){ s.shotT=0; sfx.pop(); shootAt(cx,cy,pcx,pcy,3.0,'snow'); }
+    } else if(s.kind==='dragon'){
+      s.x+=s.vx; if(s.x<s.minX||s.x>s.maxX||!mobClear(s.x,s.y,s.w-1,'mob')){ s.vx*=-1; s.x+=s.vx*2; }
+      s.shotT++; if(s.shotT>118){ s.shotT=0; sfx.boss();
+        const base=Math.atan2(pcy-cy,pcx-cx);
+        [-0.35,0,0.35].forEach(a=>projectiles.push({x:cx,y:cy,vx:Math.cos(base+a)*2.6,vy:Math.sin(base+a)*2.6,life:200,kind:'fire',hostile:true})); }
+    } else { // queen
+      s.tpT=(s.tpT||0)+1;
+      if(s.tpT>145){ s.tpT=0;
+        for(let i=0;i<12;i++)particles.push(part(cx,cy,'#e88aff',20));
+        s.x=s.minX+Math.random()*(s.maxX-s.minX); s.y=s.minY+Math.random()*(s.maxY-s.minY);
+        for(let i=0;i<12;i++)particles.push(part(s.x+s.w/2,s.y+s.h/2,'#ffd24a',20)); sfx.key(); }
+      s.shotT++; if(s.shotT>82){ s.shotT=0; sfx.gem(); shootAt(cx,cy,pcx,pcy,2.4,'star'); }
+    }
+    s.x=Math.max(s.minX,Math.min(s.maxX,s.x)); s.y=Math.max(s.minY,Math.min(s.maxY,s.y));
+    if(player.inv<=0 && Math.abs(s.x+s.w/2-pcx)<s.w/2+12 && Math.abs(s.y+s.h/2-pcy)<s.h/2+10){ damagePlayer(cx,cy); }
+  }
+
   // ---------- update ----------
   function update(){
     if(state!=='play')return;
     let dx=0,dy=0;
     if(keys.up){dy-=1;player.dir='up';} if(keys.down){dy+=1;player.dir='down';}
     if(keys.left){dx-=1;player.dir='left';} if(keys.right){dx+=1;player.dir='right';}
+
+    // slippery ice: keep sliding in the last direction until you leave the ice
+    const utx=Math.floor((player.x+player.w/2)/TILE), uty=Math.floor((player.y+player.h/2)/TILE);
+    if(map[uty]&&map[uty][utx]===T.ICE){
+      if(dx||dy){ player.sdx=dx; player.sdy=dy; }
+      else { dx=player.sdx||0; dy=player.sdy||0; }
+    } else { player.sdx=0; player.sdy=0; }
 
     if(dx||dy){ const f=dirProbe(dx,dy);
       // unlock doors with a key
@@ -566,14 +802,77 @@
       if(player.inv<=0 && Math.abs(b.x+10-pcx)<20 && Math.abs(b.y+8-pcy)<20){ damagePlayer(b.x+10,b.y+8); }
     });
 
+    // ghosts drift through everything toward the player
+    ghosts.forEach(g=>{ g.t++;
+      const tox=pcx-(g.x+10),toy=pcy-(g.y+8),tl=Math.hypot(tox,toy)||1;
+      g.x+=(tox/tl)*0.75+Math.sin(g.t/40)*0.4; g.y+=(toy/tl)*0.75+Math.cos(g.t/50)*0.3;
+      if(player.inv<=0 && Math.abs(g.x+10-pcx)<20 && Math.abs(g.y+8-pcy)<20){ damagePlayer(g.x+10,g.y+8); }
+    });
+
+    // lost bunnies: find them, they follow; reach the pen, they're home
+    critters.forEach((c,i)=>{ c.t++;
+      if(!c.found){ c.x+=Math.sin(c.t/60+i*2)*0.3;
+        if(Math.abs(c.x+8-pcx)<44&&Math.abs(c.y+8-pcy)<44){ c.found=true; sfx.gem(); updateHUD();
+          for(let j=0;j<10;j++)particles.push(part(c.x+8,c.y+8,'#fff',18));
+          setHint("A little bunny hops after you! Lead it home to the pen. 🐰"); }
+        return; }
+      if(c.delivered){
+        if(c.t%90===0){ c.hx=(L.pen.x0+Math.random()*(L.pen.x1-L.pen.x0))*TILE+12;
+                        c.hy=(L.pen.y0+Math.random()*(L.pen.y1-L.pen.y0))*TILE+12; }
+        if(c.hx!==undefined){ const ddx=c.hx-c.x,ddy=c.hy-c.y,ddl=Math.hypot(ddx,ddy)||1;
+          if(ddl>3){ c.x+=ddx/ddl*0.8; c.y+=ddy/ddl*0.8; } }
+        return; }
+      const off=[[-30,18],[26,20],[-14,-26]][i%3];
+      const tx=pcx+off[0], ty=pcy+off[1], ddx=tx-c.x, ddy=ty-c.y, ddl=Math.hypot(ddx,ddy)||1;
+      if(ddl>6){ c.x+=ddx/ddl*2.3; c.y+=ddy/ddl*2.3; }
+      if(ddl>260){ c.x=tx; c.y=ty; }
+      const ctx2=Math.floor((c.x+8)/TILE), cty2=Math.floor((c.y+8)/TILE);
+      if(L.pen&&ctx2>=L.pen.x0&&ctx2<=L.pen.x1&&cty2>=L.pen.y0&&cty2<=L.pen.y1){
+        c.delivered=true; sfx.key(); updateHUD();
+        for(let j=0;j<14;j++)particles.push(part(c.x+8,c.y+8,'#ffd24a',22));
+        setHint("Bunny safe in the pen! "+critters.filter(q=>q.delivered).length+"/3 🐰"); }
+    });
+
+    // magic doors
+    if(player.portCd>0)player.portCd--;
+    if(portals.length&&player.portCd<=0){
+      const pt=portals.find(p=>p.x===ptx&&p.y===pty);
+      if(pt){ for(let i=0;i<14;i++)particles.push(part(pcx,pcy,'#7df0ff',20));
+        player.x=pt.tx*TILE+8; player.y=pt.ty*TILE+8; player.portCd=50; sfx.lift();
+        for(let i=0;i<14;i++)particles.push(part(player.x+12,player.y+12,'#ffd24a',20)); } }
+
+    // projectiles
+    projectiles.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.life--;
+      if(solidAt(p.x,p.y,'mob')) p.life=0;
+      if(p.hostile){ if(player.inv<=0&&Math.abs(p.x-pcx)<15&&Math.abs(p.y-pcy)<15){ damagePlayer(p.x,p.y); p.life=0; } }
+      else if(shooter&&shooter.alive&&Math.abs(p.x-(shooter.x+shooter.w/2))<26&&Math.abs(p.y-(shooter.y+shooter.h/2))<26){
+        hitShooter(2); p.life=0; }
+    });
+    projectiles=projectiles.filter(p=>p.life>0);
+
+    // ambient weather
+    if(L.ambient==='snow'&&Math.random()<0.5)
+      particles.push({x:cam.x+Math.random()*cv.width,y:cam.y-4,vx:(Math.random()-.5)*0.6,vy:0.9+Math.random()*0.6,life:220,col:'#ffffff',g:0});
+    else if(L.ambient==='ember'&&Math.random()<0.3)
+      particles.push({x:cam.x+Math.random()*cv.width,y:cam.y+cv.height+4,vx:(Math.random()-.5)*0.4,vy:-(0.6+Math.random()*0.7),life:160,col:Math.random()<0.5?'#ff9a3a':'#ffd24a',g:0});
+    else if(L.ambient==='sparkle'&&Math.random()<0.25)
+      particles.push({x:cam.x+Math.random()*cv.width,y:cam.y+Math.random()*cv.height,vx:0,vy:0,life:26,col:'#ffe89a',g:0});
+
+    // the golden puppy just wants to be near you
+    if(pup){ pup.t++;
+      const tx=pcx+26, ty=pcy+14, ddx=tx-pup.x, ddy=ty-pup.y, ddl=Math.hypot(ddx,ddy)||1;
+      if(ddl>8){ pup.x+=ddx/ddl*2.2; pup.y+=ddy/ddl*2.2; }
+      if(ddl>260){ pup.x=tx; pup.y=ty; } }
+
     if(frog&&frog.alive) updateFrog(pcx,pcy);
     if(frog&&frog.flash>0)frog.flash--;
     if(boss&&boss.alive) updateBoss(pcx,pcy);
     if(boss&&boss.flash>0)boss.flash--;
+    if(shooter&&shooter.alive) updateShooter(pcx,pcy);
 
     if(L.checkWin(pcx,pcy)) winGame();
 
-    particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.06;p.life--;});
+    particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=(p.g!==undefined?p.g:0.06);p.life--;});
     particles=particles.filter(p=>p.life>0);
     if(shakeT>0)shakeT--;
     cam.x=Math.max(0,Math.min(MAP_W*TILE-cv.width,pcx-cv.width/2));
@@ -592,8 +891,9 @@
     if(gateClosedAt(tx,ty))return false; if(blockAt(tx,ty)>=0)return false; return true; }
   function recomputePlates(){
     const groups={}; plates.forEach(p=>{ p.on=crates.some(c=>c.x===p.x&&c.y===p.y);
-      groups[p.group]=groups[p.group]||p.on; });
-    gates.forEach(g=>{ const want=!!groups[g.group];
+      groups[p.group]=(p.group in groups)?(groups[p.group]||p.on):p.on; });
+    gates.forEach(g=>{ if(!(g.group in groups))return;   // lever-controlled gates are not ours
+      const want=!!groups[g.group];
       if(g.open!==want){ g.open=want; sfx.plate(); setHint(want?"Click! The gate opens.":"The gate closes again."); } }); }
 
   function damagePlayer(sx,sy){ player.hp--; player.inv=70; shakeT=10; sfx.hurt();
@@ -685,8 +985,11 @@
       const tw=(Math.sin(Date.now()/300+x*3+y*5)+1)/2;
       ctx.fillStyle='rgba(255,255,255,'+(0.15+0.25*tw)+')'; ctx.fillRect(sx+18,sy+6,3,3); ctx.fillRect(sx+6,sy+28,3,3); }
     else if(t===T.BRIDGE){ ctx.fillStyle=css('--water'); ctx.fillRect(sx,sy,TILE,TILE);
-      ctx.fillStyle='#a97b46'; ctx.fillRect(sx+2,sy+2,TILE-4,TILE-4);
-      ctx.fillStyle='#8a5f30'; ctx.fillRect(sx+2,sy+12,TILE-4,3); ctx.fillRect(sx+2,sy+26,TILE-4,3); }
+      ctx.fillStyle=css('--bridge'); ctx.fillRect(sx+2,sy+2,TILE-4,TILE-4);
+      ctx.fillStyle='rgba(0,0,0,.25)'; ctx.fillRect(sx+2,sy+12,TILE-4,3); ctx.fillRect(sx+2,sy+26,TILE-4,3); }
+    else if(t===T.ICE){ ctx.fillStyle=((x+y)%2===0)?'#cfe8f6':'#c2e0f2'; ctx.fillRect(sx,sy,TILE,TILE);
+      ctx.fillStyle='rgba(255,255,255,.55)'; ctx.fillRect(sx+6,sy+8,14,3); ctx.fillRect(sx+22,sy+24,10,3);
+      ctx.fillStyle='rgba(120,170,210,.35)'; ctx.fillRect(sx+14,sy+18,3,10); }
     else if(t===T.TREE){ ctx.fillStyle=css('--wood'); ctx.fillRect(sx+16,sy+22,8,14);
       ctx.fillStyle=css('--leaf'); ctx.fillRect(sx+4,sy+2,32,26);
       ctx.fillStyle='rgba(255,255,255,.10)'; ctx.fillRect(sx+8,sy+6,8,6);
@@ -826,7 +1129,92 @@
     else { ctx.fillStyle='#caa64a'; for(let i=0;i<4;i++)ctx.fillRect(sx+4+i*10,sy,5,38);
       ctx.fillStyle='#8a6a26'; ctx.fillRect(sx+2,sy,36,5); ctx.fillRect(sx+2,sy+33,36,5); } }
 
+  function drawLever(l){ const sx=P(l.x*TILE-cam.x), sy=P(l.y*TILE-cam.y);
+    ctx.fillStyle='#6a6a72'; ctx.fillRect(sx+12,sy+24,16,8);
+    ctx.strokeStyle=l.on?'#ffd24a':'#c8c8d0'; ctx.lineWidth=4; ctx.beginPath();
+    ctx.moveTo(sx+20,sy+26); ctx.lineTo(sx+20+(l.on?9:-9),sy+10); ctx.stroke();
+    ctx.fillStyle=l.on?'#ffd24a':'#e8e8f0'; ctx.fillRect(sx+17+(l.on?9:-9),sy+6,7,7); }
+
+  function drawPortal(p){ const sx=P(p.x*TILE-cam.x+20), sy=P(p.y*TILE-cam.y+20), a=Date.now()/300;
+    for(let i=0;i<3;i++){ ctx.strokeStyle=['#7df0ff','#ffd24a','#e88aff'][i]; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(sx,sy,15-i*4,a+i*2.1,a+i*2.1+4.2); ctx.stroke(); }
+    ctx.fillStyle='rgba(125,240,255,'+(0.25+0.15*Math.sin(Date.now()/180))+')';
+    ctx.beginPath(); ctx.arc(sx,sy,6,0,6.3); ctx.fill(); }
+
+  function drawGhost(g){ const sx=P(g.x-cam.x), sy=P(g.y-cam.y), bob=Math.sin(g.t/25)*3;
+    ctx.globalAlpha=0.78; ctx.fillStyle='#e8ecf8';
+    ctx.beginPath(); ctx.arc(sx+10,sy+8+bob,10,Math.PI,0); ctx.fill();
+    ctx.fillRect(sx,sy+8+bob,20,9);
+    for(let i=0;i<4;i++){ ctx.beginPath(); ctx.arc(sx+4+i*5,sy+17+bob,2.6,0,Math.PI); ctx.fill(); }
+    ctx.globalAlpha=1;
+    ctx.fillStyle='#2a2a3a'; ctx.fillRect(sx+5,sy+5+bob,3,4); ctx.fillRect(sx+12,sy+5+bob,3,4); }
+
+  function drawBunny(c){ const sx=P(c.x-cam.x), sy=P(c.y-cam.y),
+      hop=c.found&&!c.delivered?Math.abs(Math.sin(c.t/10))*4:Math.abs(Math.sin(c.t/34))*2;
+    ctx.fillStyle='#f6f4f0';
+    ctx.fillRect(sx+2,sy+8-hop,12,9); ctx.fillRect(sx+10,sy+4-hop,7,7);
+    ctx.fillRect(sx+11,sy-3-hop,2,7); ctx.fillRect(sx+15,sy-3-hop,2,7);
+    ctx.fillStyle='#ffb0c8'; ctx.fillRect(sx+12,sy-1-hop,1,3); ctx.fillRect(sx+16,sy-1-hop,1,3);
+    ctx.fillStyle='#2a1a0c'; ctx.fillRect(sx+13,sy+6-hop,2,2);
+    ctx.fillStyle='#ffb0c8'; ctx.fillRect(sx+16,sy+8-hop,2,2);
+    ctx.fillStyle='#f6f4f0'; ctx.fillRect(sx,sy+9-hop,3,3);
+    if(!c.found){ ctx.fillStyle='#9fd0ff'; ctx.font='12px monospace'; ctx.fillText('?',sx+6,sy-8); } }
+
+  function drawPup(){ const sx=P(pup.x-cam.x), sy=P(pup.y-cam.y), bob=Math.abs(Math.sin(pup.t/14))*3;
+    ctx.fillStyle='#e8b13a'; ctx.fillRect(sx+2,sy+7-bob,13,8); ctx.fillRect(sx+11,sy+3-bob,7,7);
+    ctx.fillStyle='#c99425'; ctx.fillRect(sx+10,sy+1-bob,3,3); ctx.fillRect(sx+15,sy+1-bob,3,3);
+    ctx.fillStyle='#2a1a0c'; ctx.fillRect(sx+14,sy+5-bob,2,2);
+    ctx.fillStyle='#e8b13a'; ctx.fillRect(sx,sy+6-bob,3,3);
+    if(Math.floor(pup.t/60)%5===0&&pup.t%60<14){ ctx.fillStyle='#fff'; ctx.font='9px monospace'; ctx.fillText('yip!',sx+14,sy-3); } }
+
+  function drawShooter(){ if(!shooter||!shooter.alive)return; const s=shooter,
+      sx=P(s.x-cam.x), sy=P(s.y-cam.y), fl=s.flash>0, sq=Math.sin(Date.now()/160)*2;
+    if(s.kind==='yeti'){
+      ctx.fillStyle=fl?'#fff':'#eef4fa'; ctx.fillRect(sx,sy+6+sq,s.w,s.h-6-sq);      // shaggy body
+      ctx.fillStyle=fl?'#fff':'#dbe7f0'; ctx.fillRect(sx+6,sy+sq,s.w-12,14);          // head
+      ctx.fillStyle='#9cb4c8'; ctx.fillRect(sx+8,sy+4+sq,s.w-16,5);                   // face shadow
+      ctx.fillStyle='#1a2530'; ctx.fillRect(sx+10,sy+5+sq,4,4); ctx.fillRect(sx+22,sy+5+sq,4,4);
+      ctx.fillStyle='#eef4fa'; ctx.fillRect(sx-5,sy+12+sq,7,12); ctx.fillRect(sx+s.w-2,sy+12+sq,7,12); // arms
+    } else if(s.kind==='dragon'){
+      const wf=Math.sin(Date.now()/110)*5;
+      ctx.fillStyle=fl?'#fff':'#c23b3b';                                              // wings
+      ctx.beginPath(); ctx.moveTo(sx+4,sy+10); ctx.lineTo(sx-8,sy-2-wf); ctx.lineTo(sx+2,sy+16); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(sx+s.w-4,sy+10); ctx.lineTo(sx+s.w+8,sy-2-wf); ctx.lineTo(sx+s.w-2,sy+16); ctx.closePath(); ctx.fill();
+      ctx.fillStyle=fl?'#fff':'#4a9c4a'; ctx.fillRect(sx,sy+6+sq,s.w,s.h-6-sq);       // body
+      ctx.fillStyle=fl?'#fff':'#ffe14d'; ctx.fillRect(sx+6,sy+16+sq,s.w-12,8);        // belly
+      ctx.fillStyle=fl?'#fff':'#3a7c3a'; ctx.fillRect(sx+s.w-16,sy-2+sq,14,12);       // head
+      ctx.fillStyle='#11270a'; ctx.fillRect(sx+s.w-8,sy+1+sq,3,3);
+      ctx.fillStyle='#ff7a2a'; ctx.fillRect(sx+s.w-2,sy+5+sq,4,2);                    // nostril puff
+    } else { // queen
+      const hov=Math.sin(Date.now()/200)*3;
+      ctx.fillStyle=fl?'#fff':'#8a5ac2'; ctx.fillRect(sx+2,sy+12+hov,s.w-4,s.h-12);   // gown
+      ctx.fillStyle=fl?'#fff':'#a97ad8'; ctx.fillRect(sx+2,sy+12+hov,s.w-4,6);
+      ctx.fillStyle='#f6dcc0'; ctx.fillRect(sx+8,sy+2+hov,14,12);                     // face
+      ctx.fillStyle='#3a2c5a'; ctx.fillRect(sx+6,sy-2+hov,18,5);                      // hair
+      ctx.fillStyle='#222'; ctx.fillRect(sx+11,sy+6+hov,2,2); ctx.fillRect(sx+17,sy+6+hov,2,2);
+      ctx.fillStyle=css('--gold'); ctx.fillRect(sx+8,sy-7+hov,4,5); ctx.fillRect(sx+13,sy-9+hov,4,7); ctx.fillRect(sx+18,sy-7+hov,4,5);
+      const wa=Date.now()/90;                                                          // star wand
+      ctx.save(); ctx.translate(sx+s.w+2,sy+14+hov); ctx.rotate(Math.sin(wa/3)*0.3);
+      ctx.fillStyle='#e8e8f0'; ctx.fillRect(-1,0,2,12);
+      ctx.fillStyle='#ffd24a'; ctx.fillRect(-4,-4,8,3); ctx.fillRect(-1,-7,2,9); ctx.restore();
+    }
+    const w=44, hx=sx+(s.w-w)/2, hy=sy-16;
+    ctx.fillStyle='#000'; ctx.fillRect(hx-1,hy-1,w+2,5);
+    ctx.fillStyle='#e23b3b'; ctx.fillRect(hx,hy,w*(s.hp/s.maxhp),3); }
+
+  function drawProj(p){ const sx=P(p.x-cam.x), sy=P(p.y-cam.y);
+    if(p.kind==='snow'){ ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(sx,sy,5,0,6.3); ctx.fill();
+      ctx.fillStyle='#cfe4f2'; ctx.fillRect(sx-2,sy+1,4,2); }
+    else if(p.kind==='fire'){ ctx.fillStyle='#ff7a2a'; ctx.beginPath(); ctx.arc(sx,sy,6,0,6.3); ctx.fill();
+      ctx.fillStyle='#ffe14d'; ctx.beginPath(); ctx.arc(sx,sy,3,0,6.3); ctx.fill(); }
+    else { ctx.save(); ctx.translate(sx,sy); ctx.rotate((Date.now()/90)%6.3);
+      ctx.fillStyle=p.hostile?'#ffd24a':'#7df0ff'; ctx.fillRect(-6,-2,12,4); ctx.fillRect(-2,-6,4,12); ctx.restore(); } }
+
   function drawHero(x,y,dir,c,swing){
+    if(prog.done[7]){ // the Rainbow Cape, earned at the Star Palace
+      const capeC=['#e85d5d','#f0a04a','#ffe14d','#6fc46f','#6fb0e8'];
+      for(let i=0;i<5;i++){ ctx.fillStyle=capeC[i]; ctx.fillRect(x+1,y+11+i*3,15,3); }
+    }
     ctx.fillStyle=c.dress; ctx.fillRect(x+4,y+12,16,14);
     ctx.fillStyle='#3a2c1a'; ctx.fillRect(x+6,y+24,4,4); ctx.fillRect(x+14,y+24,4,4);
     ctx.fillStyle=c.skin; ctx.fillRect(x+6,y+2,12,12);
@@ -845,7 +1233,7 @@
   function drawDarkness(){
     if(!L.dark)return;
     const px=P(player.x+12-cam.x), py=P(player.y+12-cam.y);
-    const r=(player.hasTorch?5.4:2.7)*TILE + Math.sin(Date.now()/90)*4;
+    const r=(player.hasTorch?(L.lightRTorch||5.4):(L.lightR||2.7))*TILE + Math.sin(Date.now()/90)*4;
     dctx.setTransform(1,0,0,1,0,0);
     dctx.globalCompositeOperation='source-over';
     dctx.fillStyle='rgba(5,3,12,0.96)'; dctx.fillRect(0,0,darkCv.width,darkCv.height);
@@ -866,12 +1254,16 @@
     const tx0=Math.floor(cam.x/TILE), ty0=Math.floor(cam.y/TILE);
     for(let y=ty0;y<=ty0+VIEW_H+1;y++)for(let x=tx0;x<=tx0+VIEW_W+1;x++){
       if(x<0||y<0||x>=MAP_W||y>=MAP_H)continue; drawTile(map[y][x],x,y); }
-    plates.forEach(drawPlate); gates.forEach(drawGate); signs.forEach(drawSign);
+    plates.forEach(drawPlate); gates.forEach(drawGate); levers.forEach(drawLever);
+    portals.forEach(drawPortal); signs.forEach(drawSign);
     gems.forEach(drawGem); keysArr.forEach(drawKeyObj); drawBoneObj(); drawBoots(); drawTorch();
     crates.forEach(drawCrate);
     drawChest(); drawCage();
-    if(dog)drawDog();
-    slimes.forEach(drawSlime); drawFrog(); drawBoss(); bats.forEach(drawBat);
+    if(dog)drawDog(); if(pup)drawPup();
+    critters.forEach(drawBunny);
+    slimes.forEach(drawSlime); drawFrog(); drawBoss(); drawShooter();
+    bats.forEach(drawBat); ghosts.forEach(drawGhost);
+    projectiles.forEach(drawProj);
     particles.forEach(p=>{ctx.fillStyle=p.col;ctx.fillRect(P(p.x-cam.x),P(p.y-cam.y),4,4);});
     drawPlayer();
     drawDarkness();
@@ -897,6 +1289,7 @@
     if(player.keys>0) itemsEl.appendChild(chip('x'+player.keys,g=>{g.fillStyle='#ffd24a';g.fillRect(2,2,6,6);g.fillRect(5,7,2,6);g.fillRect(7,11,3,2);}));
     if(player.hasBoots) itemsEl.appendChild(chip('👢',()=>{}));
     if(player.hasTorch) itemsEl.appendChild(chip('🔦',()=>{}));
+    if(critters.length) itemsEl.appendChild(chip('🐰 '+critters.filter(c=>c.delivered).length+'/'+critters.length,()=>{}));
     hintEl.textContent=L.obj();
   }
 
@@ -937,9 +1330,9 @@
     });
     const doneCount=prog.done.filter(Boolean).length;
     document.getElementById('mapNote').textContent=
-      doneCount===4?'ALL FOUR WORLDS COMPLETE! You are amazing! 🎆':
+      doneCount===LEVELS.length?'ALL EIGHT WORLDS COMPLETE! You are the Champions! 🌈🎆':
       doneCount===0?'Start in the Greenwood — each world you finish unlocks the next!':
-      'Worlds complete: '+doneCount+'/4 — keep going!';
+      'Worlds complete: '+doneCount+'/'+LEVELS.length+' — keep going!';
   }
 
   function startLevel(i){ levelIdx=i; L=LEVELS[i]; resetState(); L.build();
@@ -977,7 +1370,10 @@
   window.__TQ={ startLevel, keys,
     get state(){return state;}, get player(){return player;}, get L(){return L;}, get prog(){return prog;},
     get frog(){return frog;}, get boss(){return boss;}, get chest(){return chest;}, get cage(){return cage;},
-    get dog(){return dog;}, get gems(){return gems;}, get map(){return map;}, T };
+    get dog(){return dog;}, get gems(){return gems;}, get map(){return map;}, T,
+    get shooter(){return shooter;}, get levers(){return levers;}, get gates(){return gates;},
+    get portals(){return portals;}, get critters(){return critters;}, get ghosts(){return ghosts;},
+    get projectiles(){return projectiles;}, get crates(){return crates;}, get pup(){return pup;} };
 
   loop();
 })();

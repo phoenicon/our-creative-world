@@ -18,16 +18,21 @@ npm run build      # production build in dist/
 ## Twin Quest II (public/games/twin-quest.html)
 
 A single self-contained HTML file — no build step, no dependencies.
-Four levels, unlocked in order, progress saved in localStorage:
+Eight levels, unlocked in order, progress saved in localStorage:
 
 1. 🌳 **The Greenwood** — feed the lonely dog, crate puzzle, Slime King
 2. 💎 **Crystal Caves** — darkness + torch, mining, bats, 3 crystals power the lift
 3. 🌊 **Flooded Ruins** — push crates into water to build bridges, magic boots, the Grumpy Frog
 4. 🏰 **Slime King's Castle** — two keys, spike halls, a splitting boss, rescue the golden puppy
+5. ❄️ **Frozen Peaks** — slippery ice physics, snowfall, the snowball-throwing Grumpy Yeti
+6. 🌋 **Dragon's Volcano** — push crates into lava to make stone bridges, levers, a fire-breathing Baby Dragon
+7. 🌙 **Moonlit Marsh** — foggy escort quest: find 3 lost bunnies and lead them home past the ghosts
+8. 🌟 **Star Palace** — teleporter mazes and the Star Queen, whose stars you deflect with your sword
 
 Beating a level awards a sticker in the app's Sticker Book (both read/write the
 `ocw-stickers` localStorage key). Befriending the dog in level 1 makes it follow
-you in every later world.
+you in every later world; rescuing the golden puppy in level 4 adds it to the
+party too, and beating the Star Palace earns the heroes a permanent Rainbow Cape.
 
 Testing shortcuts: `twin-quest.html?level=3` jumps straight into a level,
 `?unlock=1` unlocks all levels on the map.

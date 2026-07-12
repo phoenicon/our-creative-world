@@ -30,6 +30,10 @@ export const ALL_STICKERS: Sticker[] = [
   { id: 'quest-caves', emoji: '💎', name: 'Cave Explorer', category: 'quest', earnedHow: 'Light up the Crystal Caves' },
   { id: 'quest-ruins', emoji: '🐸', name: 'Ruin Raider', category: 'quest', earnedHow: 'Defeat the Grumpy Frog in the Flooded Ruins' },
   { id: 'quest-castle', emoji: '👑', name: 'Castle Champion', category: 'quest', earnedHow: 'Rescue the golden puppy from the Slime King\'s Castle' },
+  { id: 'quest-frozen', emoji: '❄️', name: 'Ice Slider', category: 'quest', earnedHow: 'Beat the Grumpy Yeti in the Frozen Peaks' },
+  { id: 'quest-volcano', emoji: '🐉', name: 'Dragon Tamer', category: 'quest', earnedHow: 'Calm the Baby Dragon in the Volcano' },
+  { id: 'quest-marsh', emoji: '🐰', name: 'Bunny Rescuer', category: 'quest', earnedHow: 'Bring all three bunnies home in the Moonlit Marsh' },
+  { id: 'quest-star', emoji: '🌈', name: 'Star Champion', category: 'quest', earnedHow: 'Defeat the Star Queen and earn the Rainbow Cape' },
 
   { id: 'morning-bird', emoji: '🌅', name: 'Morning Bird', category: 'special', earnedHow: 'Use the app before 9am' },
   { id: 'night-owl', emoji: '🦉', name: 'Night Owl', category: 'special', earnedHow: 'Use the app after 7pm' },

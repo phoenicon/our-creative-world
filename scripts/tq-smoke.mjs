@@ -150,7 +150,75 @@ check('L4 cage open', TQ.cage.open);
 put(15, 3); tick(3);
 check('L4 win', TQ.state === 'win');
 check('L4 sticker', JSON.parse(store['ocw-stickers']).includes('quest-castle'));
-check('all four worlds done', JSON.parse(store['ocw-tq2-progress']).done.every(Boolean));
+
+// ---------- Level 5: Frozen Peaks ----------
+TQ.startLevel(4);
+tick(5);
+check('L5 golden puppy joins after castle', !!TQ.pup);
+put(11, 7); press('right'); tick(10); release('right');
+const xAtRelease = TQ.player.x;
+tick(25);
+check('L5 ice keeps you sliding', TQ.player.x > xAtRelease + 20);
+// stand in the arena until the yeti throws a snowball, then deflect it
+put(22, 16); tick(130);
+check('L5 yeti throws snowballs', TQ.projectiles.length > 0);
+const snow = TQ.projectiles.find(p => p.hostile);
+if (snow) { TQ.player.x = snow.x - 42; TQ.player.y = snow.y - 12; TQ.player.dir = 'right'; use(); }
+check('L5 sword deflects projectiles', TQ.projectiles.some(p => !p.hostile) || !TQ.projectiles.length);
+tick(15);
+while (TQ.shooter.alive) { TQ.shooter.hp = 1;
+  TQ.player.x = TQ.shooter.x - 26; TQ.player.y = TQ.shooter.y + 6; TQ.player.dir = 'right'; use(); tick(12); }
+check('L5 yeti beaten', !TQ.shooter.alive);
+put(24, 17); tick(3);
+check('L5 win', TQ.state === 'win');
+check('L5 sticker', JSON.parse(store['ocw-stickers']).includes('quest-frozen'));
+
+// ---------- Level 6: Dragon's Volcano ----------
+TQ.startLevel(5);
+tick(5);
+put(12, 8); use();
+check('L6 lever opens fire gate', TQ.gates.find(g => g.group === 5).open === true);
+put(14, 14); press('right'); tick(320); release('right');
+check('L6 crate sank into lava bridge', TQ.map[14][18] === TQ.T.BRIDGE);
+put(25, 13); use();
+check('L6 second lever opens arena', TQ.gates.find(g => g.group === 6).open === true);
+tick(15);
+while (TQ.shooter.alive) { TQ.shooter.hp = 1;
+  TQ.player.x = TQ.shooter.x - 26; TQ.player.y = TQ.shooter.y + 6; TQ.player.dir = 'right'; use(); tick(12); }
+check('L6 dragon calmed', !TQ.shooter.alive);
+put(23, 5); tick(3);
+check('L6 win', TQ.state === 'win');
+check('L6 sticker', JSON.parse(store['ocw-stickers']).includes('quest-volcano'));
+
+// ---------- Level 7: Moonlit Marsh ----------
+TQ.startLevel(6);
+tick(5);
+check('L7 three bunnies to find', TQ.critters.length === 3);
+for (const c of TQ.critters) { put(Math.round(c.x / TILE), Math.round(c.y / TILE)); tick(4); }
+check('L7 all bunnies found', TQ.critters.every(c => c.found));
+put(4, 10); tick(80);
+check('L7 all bunnies delivered', TQ.critters.every(c => c.delivered));
+check('L7 win', TQ.state === 'win');
+check('L7 sticker', JSON.parse(store['ocw-stickers']).includes('quest-marsh'));
+
+// ---------- Level 8: Star Palace ----------
+TQ.startLevel(7);
+tick(5);
+put(12, 15); tick(3);
+check('L8 magic door teleports you', Math.floor(TQ.player.x / TILE) === 4 && Math.floor(TQ.player.y / TILE) === 12);
+// crate onto the star plate: push down to y15, then left to x24
+while (TQ.crates[0].y < 15) { put(TQ.crates[0].x, TQ.crates[0].y - 1); press('down'); tick(14); release('down'); tick(2); }
+while (TQ.crates[0].x > 24) { put(TQ.crates[0].x + 1, TQ.crates[0].y); press('left'); tick(14); release('left'); tick(2); }
+check('L8 plate opens palace gate', TQ.gates.find(g => g.group === 1).open === true);
+tick(15);
+while (TQ.shooter.alive) { TQ.shooter.hp = 1;
+  TQ.player.x = TQ.shooter.x - 26; TQ.player.y = TQ.shooter.y + 6; TQ.player.dir = 'right'; use(); tick(12); }
+check('L8 Star Queen defeated', !TQ.shooter.alive);
+put(15, 4); tick(3);
+check('L8 win', TQ.state === 'win');
+check('L8 sticker', JSON.parse(store['ocw-stickers']).includes('quest-star'));
+check('all eight worlds done', JSON.parse(store['ocw-tq2-progress']).done.every(Boolean));
+check('save has 8 slots', JSON.parse(store['ocw-tq2-progress']).done.length === 8);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
